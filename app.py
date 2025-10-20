@@ -221,6 +221,43 @@ def create_app():
 
        games_list_cursor = games.find(query).sort("start_time", 1)
        return render_template("games.html", games=list(games_list_cursor))
+    
+    # Join game
+    @app.post("/games/<game_id>/join")
+    @login_required
+    def join_game(game_id):
+       user_id = str(current_user.get_id())
+       game = games.find_one({"_id": ObjectId(game_id)})
+
+
+       if not game:
+           flash("Game not found.")
+       elif user_id in game.get("player_ids", []):
+           flash("You're already in this game.")
+       elif len(game.get("player_ids", [])) >= game["max_players"]:
+           flash("Game is full.")
+       else:
+           games.update_one(
+               {"_id": ObjectId(game_id)},
+               {"$addToSet": {"player_ids": user_id},
+                "$set": {"updated_at": datetime.datetime.utcnow()}}
+           )
+           flash("Joined game successfully.")
+       return redirect(url_for("game_detail", game_id=game_id))
+
+
+    # Leave game
+    @app.post("/games/<game_id>/leave")
+    @login_required
+    def leave_game(game_id):
+       user_id = str(current_user.get_id())
+       games.update_one(
+           {"_id": ObjectId(game_id)},
+           {"$pull": {"player_ids": user_id},
+            "$set": {"updated_at": datetime.datetime.utcnow()}}
+       )
+       flash("You left the game.")
+       return redirect(url_for("game_detail", game_id=game_id))
 
 
     return app
