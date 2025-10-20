@@ -298,6 +298,35 @@ def create_app():
        )
        flash("Game updated successfully.")
        return redirect(url_for("game_detail", game_id=game_id))
+   
+    # Delete post logic
+    @app.post("/games/<game_id>/delete")
+    @login_required
+    def delete_game(game_id):
+       game = games.find_one({"_id": ObjectId(game_id)})
+       if not game:
+           flash("Game not found.")
+           return redirect(url_for("home"))
+       if str(current_user.get_id()) != game["created_by"]:
+           flash("Not authorized to delete this game.")
+           return redirect(url_for("game_detail", game_id=game_id))
+
+
+       games.delete_one({"_id": ObjectId(game_id)})
+       flash("Game deleted successfully.")
+       return redirect(url_for("home"))
+
+
+    # My Games page -- my_games.html
+    @app.get("/my-games")
+    @login_required
+    def my_games():
+       user_id = str(current_user.get_id())
+       now = datetime.datetime.now()
+       hosted = list(games.find({"created_by": user_id, "start_time": {"$gte": now}}).sort("start_time", 1))
+       joined = list(games.find({"player_ids": user_id, "start_time": {"$gte": now}}).sort("start_time", 1))
+       return render_template("my_games.html", hosted=hosted, joined=joined)
+
 
     return app
 
