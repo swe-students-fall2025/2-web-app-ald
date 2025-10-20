@@ -258,7 +258,46 @@ def create_app():
        )
        flash("You left the game.")
        return redirect(url_for("game_detail", game_id=game_id))
+    
+    # Edit game: (GET) --- edit_game.html
+    @app.get("/games/<game_id>/edit")
+    @login_required
+    def edit_game_form(game_id):
+       g = games.find_one({"_id": ObjectId(game_id)})
+       if not g:
+           flash("Game not found.")
+           return redirect(url_for("home"))
+       if str(current_user.get_id()) != g.get("created_by"):
+           flash("Not authorized to edit this game.")
+           return redirect(url_for("game_detail", game_id=game_id))
+       now_min = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
+       return render_template("edit_game.html", game=g, NOW_MIN=now_min)
 
+    # Edit game submit: (POST) --- edit_game.html
+    @app.post("/games/<game_id>/edit")
+    @login_required
+    def edit_game_post(game_id):
+       game = games.find_one({"_id": ObjectId(game_id)})
+       if not game:
+           flash("Game not found.")
+           return redirect(url_for("home"))
+       if str(current_user.get_id()) != game["created_by"]:
+           flash("Not authorized to edit this game.")
+           return redirect(url_for("game_detail", game_id=game_id))
+
+
+       data, error = validate_game(request.form)
+       if error:
+           flash(error)
+           return redirect(url_for("edit_game_form", game_id=game_id))
+
+
+       games.update_one(
+           {"_id": ObjectId(game_id)},
+           {"$set": {**data, "updated_at": datetime.datetime.utcnow()}}
+       )
+       flash("Game updated successfully.")
+       return redirect(url_for("game_detail", game_id=game_id))
 
     return app
 
