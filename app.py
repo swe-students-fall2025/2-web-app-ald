@@ -3,23 +3,22 @@ import datetime
 import bcrypt
 import pymongo
 from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_login import LoginManager, UserMixin,login_user, logout_user, login_required, current_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from bson.objectid import ObjectId
 from pymongo import MongoClient, ASCENDING
 from dotenv import load_dotenv, dotenv_values
 
 load_dotenv()
+
 def create_app():
-    #load flask config from env variables
+    # config setup and db connection
     app = Flask(__name__)
     config = dotenv_values()
     app.config.from_mapping(config)
     app.secret_key = app.config.get("SECRET_KEY")
 
-    #Mongo connection
     cxn = pymongo.MongoClient(os.getenv("MONGO_URI"))
     db = cxn[os.getenv("MONGO_DBNAME")]
-
     try:
         cxn.admin.command("ping")
         print(" *", "Connected to MongoDB!")
@@ -30,25 +29,74 @@ def create_app():
     games = db.games
     messages = db.messages
 
-    #flask_login setup
+    # flask login setup
     login_manager = LoginManager()
     login_manager.init_app(app)
 
     class User(UserMixin):
         def __init__(self, doc):
             self.doc = doc
-
         def get_id(self):
             return str(self.doc["_id"])
 
-    
     @login_manager.user_loader
     def load_user(user_id):
         doc = users.find_one({"_id": ObjectId(user_id)})
         return User(doc) if doc else None
 
+    # game logic helpers
+    def parse_dt(s):
+        try:
+            return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M")
+        except Exception:
+            return None
 
-    # Signup/Login/Logout
+    def validate_game(f):
+        sport = f.get("sport").lower()
+        gym = f.get("gym")
+        start_dt = parse_dt(f.get("start_time"))
+        end_dt = parse_dt(f.get("end_time"))
+        notes = (f.get("notes") or "").strip()
+
+        try:
+            needed_players = int(f.get("needed_players") or 0)
+        except ValueError:
+            return None, "Needed players must be a number."
+
+        if not start_dt or not end_dt:
+            return None, "Start and end times are required."
+
+        now = datetime.datetime.now()
+        if start_dt < now or end_dt < now:
+            return None, "Games must be scheduled in the future."
+
+        if not (start_dt < end_dt):
+            return None, "Start time must be before end time."
+
+        # facility hours: 9 AM to 7 PM
+        if not (9 <= start_dt.hour < 19 and 9 < end_dt.hour <= 19):
+            return None, "Games must be between 9 AM and 7 PM."
+
+        # duration limit: 60 minutes
+        duration = (end_dt - start_dt).total_seconds()
+        if duration <= 0 or duration > 3600:
+            return None, "Game duration must be > 0 and ≤ 60 minutes."
+
+        # Needed players: 1 through 10; also set max_players = needed_players
+        if not (1 <= needed_players <= 10):
+            return None, "Needed players must be between 1 and 10."
+
+        return {
+            "sport": sport,
+            "gym": gym,
+            "start_time": start_dt,
+            "end_time": end_dt,
+            "needed_players": needed_players,
+            "max_players": needed_players,
+            "notes": notes,
+        }, None
+
+    # ----- Signup/Login/Logout -----
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
         if request.method == "POST":
@@ -64,7 +112,6 @@ def create_app():
                 return redirect(url_for("signup"))
 
             hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-
             users.insert_one({
                 "email": email,
                 "password": hashed.decode("utf-8"),
@@ -73,7 +120,6 @@ def create_app():
 
             flash("Account created successfully. Please log in.")
             return redirect(url_for("login"))
-
         return render_template("signup.html")
 
     @app.route("/login", methods=["GET", "POST"])
@@ -95,9 +141,8 @@ def create_app():
             login_user(user)
             flash("Logged in successfully!")
             return redirect(url_for("home"))
-
         return render_template("login.html")
-    
+
     @app.route("/logout")
     @login_required
     def logout():
@@ -105,104 +150,24 @@ def create_app():
         flash("You’ve logged out.")
         return redirect(url_for("home"))
 
-    #game logic helpers
-    def parse_dt(s):
-        try:
-            return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M")
-        except Exception:
-            return None
 
-    def validate_game(f):
-        sport = f.get("sport").lower()
-        gym = f.get("gym")
-        start_dt = parse_dt(f.get("start_time"))
-        end_dt = parse_dt(f.get("end_time"))
-        notes = (f.get("notes") or "").strip()
-        # needed_players from form; max_players is fixed to 10
-        max_players = 10
-        try:
-            needed_players = int(f.get("needed_players") or 0)
-        except ValueError:
-            return None, "Needed players must be an integer."
+    # GAME ROUTES
 
-        if not start_dt or not end_dt:
-            return None, "Start and end times are required."
-
+    # Home: upcoming games -- home.html
+    @app.get("/")
+    def home():
         now = datetime.datetime.now()
-        if start_dt < now or end_dt < now:
-            return None, "Games must be scheduled in the future."
+        docs = games.find({"start_time": {"$gte": now}}).sort("start_time", 1)
+        return render_template("home.html", games=list(docs))
 
-        if not (start_dt < end_dt):
-            return None, "Start time must be before end time."
-
-        duration = (end_dt - start_dt).total_seconds()
-        if duration <= 0 or duration > 3600:
-            return None, "Game duration must be > 0 and ≤ 60 minutes."
-
-
-        if not (0 <= needed_players <= max_players):
-            return None, "needed_players must be between 0 and 10."
-
-        return {
-            "sport": sport,
-            "gym": gym,
-            "start_time": start_dt,
-            "end_time": end_dt,
-            "needed_players": needed_players,
-            "max_players": max_players, 
-            "notes": notes,
-        }, None  
-    
-    #create and edit games -- create_game.html edit_game.html
+    # Create: form (GET) -- create_game.html
     @app.get("/games/create")
     @login_required
     def create_game_form():
         now_min = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
         return render_template("create_game.html", NOW_MIN=now_min)
 
-    @app.get("/games/<game_id>/edit")
-    @login_required
-    def edit_game_form(game_id): 
-        g = games.find_one({"_id": ObjectId(game_id)})
-        if not g:
-            flash("Game not found.")
-            return redirect(url_for("home"))
-        if str(current_user.get_id()) != g.get("created_by"):
-            flash("Not authorized to edit this game.")
-            return redirect(url_for("game_detail", game_id=game_id))
-        now_min = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
-        return render_template("edit_game.html", game=g, NOW_MIN=now_min)
-    
-    # homepage: list upcoming games -- home.html
-    @app.get("/")
-    def home():
-        now = datetime.datetime.now()
-        docs = games.find({"start_time": {"$gte": now}}).sort("start_time", 1)
-        return render_template("home.html", games=list(docs))
-    
-    # games page (filtered results) -- games.html
-
-    @app.get("/games")
-    def games_list():
-        now = datetime.datetime.now()
-        query = {"start_time": {"$gte": now}}
-        sport = request.args.get("sport")
-        gym = request.args.get("gym")
-        date_from = request.args.get("date_from")
-        date_to = request.args.get("date_to")
-
-        if sport:
-            query["sport"] = sport.lower()
-        if gym:
-            query["gym"]= gym
-        if date_from:
-            query["start_time"]["$gte"] = datetime.datetime.strptime(date_from, "%Y-%m-%d")
-        if date_to:
-            query["start_time"]["$lt"]= datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
-        games_list = games.find(query).sort("start_time", 1)
-        return render_template("games.html", games=list(games_list))
-    
-    # create game post -- create_game.html
+    # Create: submit (POST) -- create_game.html
     @app.post("/games/create")
     @login_required
     def create_game_post():
@@ -218,116 +183,50 @@ def create_app():
             "created_at": datetime.datetime.now(datetime.timezone.utc),
             "updated_at": datetime.datetime.now(datetime.timezone.utc),
         }
-
         result = games.insert_one(new_game)
         flash("Game created successfully.")
         return redirect(url_for("game_detail", game_id=str(result.inserted_id)))
-    
-    # game details -- game_detail.html
+    # Game details: (GET) -- game_detail.html
     @app.get("/games/<game_id>")
     def game_detail(game_id):
-        game = games.find_one({"_id": ObjectId(game_id)})
-        if not game:
-            flash("Game not found.")
-            return redirect(url_for("home"))
-        user_id = str(current_user.get_id()) if current_user.is_authenticated else None
-        return render_template("game_detail.html", game=game, user_id=user_id)
-
-
-    # joining game through -- game_detail.html
-    @app.post("/games/<game_id>/join")
-    @login_required
-    def join_game(game_id):
-        user_id = str(current_user.get_id())
-        game = games.find_one({"_id": ObjectId(game_id)})
-
-        if not game:
-            flash("Game not found.")
-        elif user_id in game.get("player_ids", []):
-            flash("You're already in this game.")
-        elif len(game.get("player_ids", [])) >= game["max_players"]:
-            flash("Game is full.")
-        else:
-            games.update_one(
-                {"_id": ObjectId(game_id)},
-                {"$addToSet": {"player_ids": user_id}, "$set": {"updated_at": datetime.datetime.utcnow()}}
-            )
-            flash("Joined game successfully.")
-
-        return redirect(url_for("game_detail", game_id=game_id))
+       game = games.find_one({"_id": ObjectId(game_id)})
+       if not game:
+           flash("Game not found.")
+           return redirect(url_for("home"))
+       user_id = str(current_user.get_id()) if current_user.is_authenticated else None
+       return render_template("game_detail.html", game=game, user_id=user_id)
     
-    # leave the game
-    @app.post("/games/<game_id>/leave")
-    @login_required
-    def leave_game(game_id):
-        user_id = str(current_user.get_id())
-        games.update_one(
-            {"_id": ObjectId(game_id)},
-            {"$pull": {"player_ids": user_id}, "$set": {"updated_at": datetime.datetime.utcnow()}}
-        )
-        flash("You left the game.")
-        return redirect(url_for("game_detail", game_id=game_id))
-    
-    # EDIT GAME (POST)
-    @app.post("/games/<game_id>/edit")
-    @login_required
-    def edit_game_post(game_id):
-        game = games.find_one({"_id": ObjectId(game_id)})
-        if not game:
-            flash("Game not found.")
-            return redirect(url_for("home"))
-        if str(current_user.get_id()) != game["created_by"]:
-            flash("Not authorized to edit this game.")
-            return redirect(url_for("game_detail", game_id=game_id))
-
-        data, error = validate_game(request.form)
-        if error:
-            flash(error)
-            return redirect(url_for("edit_game_form", game_id=game_id))
-
-        games.update_one(
-            {"_id": ObjectId(game_id)},
-            {"$set": {**data, "updated_at": datetime.datetime.utcnow()}}
-        )
-        flash("Game updated successfully.")
-        return redirect(url_for("game_detail", game_id=game_id))
+    # Games list: filter search -- games.html
+    @app.get("/games")
+    def games_list():
+       now = datetime.datetime.now()
+       query = {"start_time": {"$gte": now}}
 
 
-    # DELETE GAME
-    @app.post("/games/<game_id>/delete")
-    @login_required
-    def delete_game(game_id):
-        game = games.find_one({"_id": ObjectId(game_id)})
-        if not game:
-            flash("Game not found.")
-            return redirect(url_for("home"))
-        if str(current_user.get_id()) != game["created_by"]:
-            flash("Not authorized to delete this game.")
-            return redirect(url_for("game_detail", game_id=game_id))
-
-        games.delete_one({"_id": ObjectId(game_id)})
-        flash("Game deleted successfully.")
-        return redirect(url_for("home"))
+       sport = request.args.get("sport")
+       gym = request.args.get("gym")
+       date_from = request.args.get("date_from")
+       date_to = request.args.get("date_to")
 
 
-    # MY GAMES
-    @app.get("/my-games")
-    @login_required
-    def my_games():
-        user_id = str(current_user.get_id())
-        now = datetime.datetime.now()
+       if sport:
+           query["sport"] = sport.lower()
+       if gym:
+           query["gym"] = gym
+       if date_from:
+           query["start_time"]["$gte"] = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+       if date_to:
+           query["start_time"]["$lt"] = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
 
-        hosted = list(games.find({"created_by": user_id, "start_time": {"$gte": now}}).sort("start_time", 1))
-        joined = list(games.find({"player_ids": user_id, "start_time": {"$gte": now}}).sort("start_time", 1))
 
-        return render_template("my_games.html", hosted=hosted, joined=joined)
-    
-    
+       games_list_cursor = games.find(query).sort("start_time", 1)
+       return render_template("games.html", games=list(games_list_cursor))
+
+
     return app
 
-    
 
-
+# can consider this /main
 app = create_app()
 print("create_app() returned:", type(app))
 
@@ -336,4 +235,3 @@ if __name__ == "__main__":
     FLASK_ENV = os.getenv("FLASK_ENV")
     print(f"FLASK_ENV: {FLASK_ENV}, FLASK_PORT: {FLASK_PORT}")
     app.run(port=FLASK_PORT)
-
