@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block container %}
+<h2>Create Game</h2>
+<form method="POST">
+    <label>Sport: 
+        <select name="sport" required>
+            <option value="basketball">Basketball</option>
+            <option value="volleyball">Volleyball</option>
+        </select>
+    </label><br><br>
+    <label>Gym: 
+        <select name="gym" required>
+            <option value="brooklyn">Brooklyn</option>
+            <option value="palladium">Palladium</option>
+            <option value="paulson">Paulson</option>
+        </select>
+    </label><br><br>
+    <label>Start Time: <input type="datetime-local" name="start_time" min="{{ NOW_MIN }}" required></label><br><br>
+    <label>End Time: <input type="datetime-local" name="end_time" min="{{ NOW_MIN }}" required></label><br><br>
+    <label>Needed Players: <input type="number" name="needed_players" min="1" max="10" required></label><br><br>
+    <label>Notes: <textarea name="notes"></textarea></label><br><br>
+    <button type="submit">Create Game</button>
+</form>
+{% endblock %}

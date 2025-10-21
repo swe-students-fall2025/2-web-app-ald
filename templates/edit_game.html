@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block container %}
+<h2>Edit Game</h2>
+<form method="POST">
+    <label>Sport: 
+        <select name="sport" required>
+            <option value="basketball" {% if game.sport == 'basketball' %}selected{% endif %}>Basketball</option>
+            <option value="volleyball" {% if game.sport == 'volleyball' %}selected{% endif %}>Volleyball</option>
+        </select>
+    </label><br><br>
+
+    <label>Gym: 
+        <select name="gym" required>
+             <option value="brooklyn" {% if game.gym == 'brooklyn' %}selected{% endif %}>Brooklyn</option>
+            <option value="palladium" {% if game.gym == 'palladium' %}selected{% endif %}>Palladium</option>
+            <option value="paulson" {% if game.gym == 'paulson' %}selected{% endif %}>Paulson</option>
+        </select>
+    </label><br><br>
+    <label>Start Time: <input type="datetime-local" name="start_time" value="{{ game.start_time.strftime('%Y-%m-%dT%H:%M') }}" min="{{ NOW_MIN }}" required></label><br><br>
+    <label>End Time: <input type="datetime-local" name="end_time" value="{{ game.end_time.strftime('%Y-%m-%dT%H:%M') }}" min="{{ NOW_MIN }}" required></label><br><br>
+    <label>Needed Players: <input type="number" name="needed_players" value="{{ game.needed_players }}" min="1" max="10" required></label><br><br>
+    <label>Notes: <textarea name="notes">{{ game.notes }}</textarea></label><br><br>
+    <button type="submit">Update Game</button>
+</form>
+{% endblock %}
