@@ -4,11 +4,12 @@ A little exercise to build a web application following an agile development proc
 
 ## Product vision statement
 
-See instructions. Delete this line and place the Product Vision Statement here.
+PickupNYU is a web application that helps NYU students organize and join casual pickup games for basketball and volleyball at their school gyms. It allows students to easily see upcoming games, create new ones, and join games hosted by others.
+
 
 ## User stories
 
-See instructions. Delete this line and place a link to the user stories here.
+(https://github.com/swe-students-fall2025/2-web-app-ald/issues)
 
 ## Steps necessary to run the software
 
@@ -16,4 +17,5 @@ See instructions. Delete this line and place instructions to download, configure
 
 ## Task boards
 
-See instructions. Delete this line and place a link to the task boards here.
+Sprint 1: https://github.com/orgs/swe-students-fall2025/projects/72
+Sprint 2: https://github.com/orgs/swe-students-fall2025/projects/75
