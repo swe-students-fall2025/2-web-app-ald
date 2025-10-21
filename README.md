@@ -13,7 +13,12 @@ PickupNYU is a web application that helps NYU students organize and join casual 
 
 ## Steps necessary to run the software
 
-See instructions. Delete this line and place instructions to download, configure, and run the software here.
+1. Clone the code in this GitHub Repository into VSCode.
+2. On GitBash or another terminal, run run py -m venv venv in a folder containing the cloned code
+3. Run source venv/bin/activate if macOS / Linux or source venv/Scripts/activate for window
+4. Make sure to pipinstall necessary modules used in app.py
+5. Create your own env file by running: cp env.example .env
+6. Run the flask app: flask --app app run --debug
 
 ## Task boards
 
