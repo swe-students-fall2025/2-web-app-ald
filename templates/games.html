@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block container %}
+<h1>Find Games</h1>
+
+<form method="GET" action="{{ url_for('games_list') }}" class="search-form">
+    <label>Sport: 
+        <select name="sport">
+            <option value="" {% if request.args.get('sport') == '' %}selected{% endif %}>Any Sport</option>
+            <option value="basketball" {% if request.args.get('sport') == 'basketball' %}selected{% endif %}>Basketball</option>
+            <option value="volleyball" {% if request.args.get('sport') == 'volleyball' %}selected{% endif %}>Volleyball</option>
+        </select>
+    </label><br>
+    <label>Gym: 
+        <select name="gym">
+            <option value="" {% if request.args.get('gym') == '' %}selected{% endif %}>Any Gym</option>
+            <option value="brooklyn" {% if request.args.get('gym') == 'brooklyn' %}selected{% endif %}>Brooklyn</option>
+            <option value="palladium" {% if request.args.get('gym') == 'palladium' %}selected{% endif %}>Palladium</option>
+            <option value="paulson" {% if request.args.get('gym') == 'paulson' %}selected{% endif %}>Paulson</option>
+        </select>
+    </label><br>
+    <label>Date From: 
+        <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}">
+    </label><br>
+    <label>Date To: 
+        <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}">
+    </label><br>
+    <button type="submit">Search</button>
+    <a href="{{ url_for('games_list') }}" class="button">Reset</a>
+</form>
+
+<hr>
+
+<h2>Matching Games</h2>
+<section class="posts">
+    {% for g in games %}
+    <article class="post">
+        <p>{{ g.sport | title }} @ {{ g.gym | capitalize}}</p>
+        <p>Start: {{ g.start_time.strftime("%m-%d-%Y at %H:%M") }}</p>
+        <p>End: {{ g.end_time.strftime("%m-%d-%Y at %H:%M") }}</p>
+        <a href="{{ url_for('game_detail', game_id=g._id) }}" class ="button">View Details</a>
+    </article>
+    {% else %}
+    <p>No games match your filters.</p>
+    {% endfor %}
+</section>
+{% endblock %}

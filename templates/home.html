@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block container %}
+<h2>Upcoming Games</h2>
+<section class="posts">
+    {% for g in games %}
+    <article class="post">
+        <p>{{ g.sport | capitalize }} at {{ g.gym | capitalize }}</p>
+        <p>Start: {{ g.start_time.strftime("%m-%d-%Y at %H:%M") }}</p>
+        <p>End: {{ g.end_time.strftime("%m-%d-%Y at %H:%M") }}</p>
+        <a href="{{ url_for('game_detail', game_id=g._id) }}" class="button">View Details</a>
+    </article>
+    {% else %}
+    <p>No upcoming games.</p>
+    {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block container %}
+<h2>{{ game.sport | capitalize }} at {{ game.gym | capitalize}}</h2>
+<p>Start: {{ game.start_time.strftime("%m-%d-%Y at %H:%M") }}</p>
+<p>End: {{ game.end_time.strftime("%m-%d-%Y at %H:%M") }}</p>
+<p>Players: {{ game.player_ids | length }} / {{ game.max_players }}</p>
+<p>Notes: {{ game.notes }}</p>
+
+{% if current_user.is_authenticated %}
+    {% if current_user.get_id() in game.player_ids %}
+        <form action="{{ url_for('leave_game', game_id=game._id) }}" method="POST">
+            <button type="submit">Leave Game</button>
+        </form>
+    {% else %}
+        <form action="{{ url_for('join_game', game_id=game._id) }}" method="POST">
+            <button type="submit">Join Game</button>
+        </form>
+    {% endif %}
+
+    {% if current_user.get_id() == game.created_by %}
+        <form action="{{ url_for('delete_game', game_id=game._id) }}" method="POST">
+            <button type="submit">Delete</button>
+        </form>
+        <a href="{{ url_for('edit_game_form', game_id=game._id) }}" class = "button">Edit</a>
+    {% endif %}
+{% endif %}
+{% endblock %}
